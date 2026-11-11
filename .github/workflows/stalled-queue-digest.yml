@@ -1,0 +1,38 @@
+name: Stalled Queue Digest
+
+# See stalled-queue-digest/README.md and PORTING.md. No agent -- three plain
+# scripts. Each step fails the job directly (no continue-on-error anywhere):
+# a failed collection or notification must never look like a clean run.
+
+on:
+  schedule:
+    - cron: "0 9 * * 1" # Monday 09:00 UTC -- keep in sync with config.yml's schedule.cron
+  workflow_dispatch: {}
+
+defaults:
+  run:
+    working-directory: stalled-queue-digest
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: stalled-queue-digest/package-lock.json
+      - run: npm ci
+      - run: npm run collect
+        env:
+          STORE_TOKEN: ${{ secrets.STALLED_QUEUE_STORE_TOKEN }}
+      - run: npm run render
+      - run: npm run notify
+        env:
+          NOTIFY_WEBHOOK_URL: ${{ secrets.NOTIFY_WEBHOOK_URL }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stalled-queue-digest
+          path: stalled-queue-digest/.artifacts/

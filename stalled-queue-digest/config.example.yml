@@ -1,0 +1,54 @@
+# Copy to config.yml and fill in every value for your project. See PORTING.md.
+
+store:
+  # Which adapter to use -- see scripts/store/adapter.interface.md. Only
+  # "github-projects" is fully implemented; Jira/TestRail/etc are documented
+  # extension points.
+  adapter: "github-projects"
+
+  github_projects:
+    org: "your-org"
+    project_number: 1
+
+    # The single-select field whose value marks an item as "waiting on a
+    # human" -- NOT necessarily the same field the test-case-maintenance
+    # tool writes to, though it often is the same project.
+    status_field: "Status"
+
+    # Values of status_field that count as pending. An item in any other
+    # status (including the final approved one) is not stalled -- it's done.
+    pending_statuses:
+      - "Draft"
+      - "Updated (Under Review)"
+      - "Deprecated (Under Review)"
+
+    # The field used as the grouping key for the digest's area breakdown --
+    # a text or single-select field. Module, team, service, owner: whatever
+    # this project organizes work by.
+    owning_area_field: "Module"
+
+# Age is measured from when the item ENTERED its current pending status --
+# the status field's OWN updatedAt, never the item's generic last-modified
+# timestamp (see docs's "four decisions" section on why this is the one
+# that will bite you).
+thresholds:
+  age_warn_days: 14 # highlighted in the digest; not a hard gate, just a visual cue
+
+caps:
+  max_areas: 6 # worst-first; beyond this, named but not detailed
+  max_detail_items: 20 # globally oldest-first across all areas combined
+
+notify:
+  webhook_secret: "NOTIFY_WEBHOOK_URL" # a Slack-compatible incoming webhook
+  mention: "@qe-team" # included in the message only when the queue is non-empty
+
+# Collector pacing/bounds -- see docs's "bound it by time AND page count".
+collector:
+  page_size: 100
+  max_pages: 50
+  retry_budget_seconds: 120
+
+schedule:
+  # Where people will act, not where they'll ignore it -- Monday morning,
+  # not Friday evening. Cron is UTC.
+  cron: "0 9 * * 1"

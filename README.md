@@ -1,4 +1,19 @@
-# Doc-driven test-case maintenance
+# Portable pipeline-governance tools
+
+Two small, independent, domain-agnostic GitHub Actions tools for the same
+underlying problem: a pipeline produces something that a human must act on,
+and without deliberate guards, a failure in that chain looks identical to
+success. Each is self-contained (its own `package.json`, its own tests) and
+can be copied out of this repo on its own.
+
+| Tool | What it does |
+|---|---|
+| [**Doc-driven test-case maintenance**](#doc-driven-test-case-maintenance) (this folder) | An AI agent proposes test-case changes from doc diffs; nothing publishes until independent validation passes |
+| [**Stalled-queue digest**](stalled-queue-digest/) | No agent — reports how stalled *any* human-approval queue actually is, leading with age, not count |
+
+Built to be forked and configured, not rewritten.
+
+## Doc-driven test-case maintenance
 
 A portable GitHub Actions pipeline that keeps a manual test-case catalogue in
 sync with product documentation. It watches merged pull requests for
@@ -8,8 +23,7 @@ accordingly — but only ever publishes anything after a battery of
 independent validation checks pass.
 
 Not domain-specific: it ships with a working GitHub Projects (v2) adapter
-and no other dependency beyond a GitHub org and an Anthropic API key. Built
-to be forked and configured, not rewritten.
+and no other dependency beyond a GitHub org and an Anthropic API key.
 
 ## The one-sentence design
 
@@ -79,6 +93,13 @@ functions (`preflight`, `listAll`, `createItem`/`getItem`,
 [scripts/store/adapter.interface.md](scripts/store/adapter.interface.md) and
 use `scripts/store/github-projects.adapter.mjs` as the reference shape for a
 Jira, TestRail, or in-house adapter.
+
+## Stalled-queue digest
+
+See [stalled-queue-digest/README.md](stalled-queue-digest/README.md) —
+three scripts, no agent, about a day to port. Nothing about it is specific
+to test cases: it's for any queue only a human can clear (PR review,
+on-call triage, moderation, schema sign-off...).
 
 ## License
 

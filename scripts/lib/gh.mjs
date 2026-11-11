@@ -28,7 +28,16 @@ export async function ghGraphql(token, query, variables = {}, retryBudgetMs = 12
         env: { ...process.env, GH_TOKEN: token },
         maxBuffer: 1024 * 1024 * 32,
       });
-      return JSON.parse(stdout);
+      const parsed = JSON.parse(stdout);
+      // The GitHub GraphQL API returns `data` ALONGSIDE `errors` on a
+      // partial failure -- a page missing one field silently drops items if
+      // this isn't checked (found while building the sibling
+      // stalled-queue-digest tool; backported here since this client has the
+      // identical latent bug).
+      if (parsed.errors && parsed.errors.length > 0) {
+        throw new Error(`GraphQL response included errors: ${JSON.stringify(parsed.errors)}`);
+      }
+      return parsed;
     } catch (err) {
       const message = String(err.stderr || err.message || err);
       const transient = /rate limit|timeout|ECONNRESET|secondary rate limit|502|503/i.test(message);

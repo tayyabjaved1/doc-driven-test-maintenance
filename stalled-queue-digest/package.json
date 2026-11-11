@@ -1,0 +1,18 @@
+{
+  "name": "stalled-queue-digest",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "A portable, domain-agnostic scheduled job that reports how stalled any human-approval queue actually is -- leading with age, not count. No agent; three small scripts. Designed to be copied out of this repo as its own self-contained folder.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "collect": "node scripts/collector.mjs",
+    "render": "node scripts/renderer.mjs",
+    "notify": "node scripts/notifier.mjs",
+    "test": "node --test scripts/__tests__/*.test.mjs"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}

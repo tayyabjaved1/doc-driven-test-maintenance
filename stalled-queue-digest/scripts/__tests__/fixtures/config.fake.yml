@@ -1,0 +1,18 @@
+store:
+  adapter: "fake"
+
+thresholds:
+  age_warn_days: 14
+
+caps:
+  max_areas: 6
+  max_detail_items: 20
+
+notify:
+  webhook_secret: "NOTIFY_WEBHOOK_URL"
+  mention: "@qe-team"
+
+collector:
+  page_size: 100
+  max_pages: 10
+  retry_budget_seconds: 5
