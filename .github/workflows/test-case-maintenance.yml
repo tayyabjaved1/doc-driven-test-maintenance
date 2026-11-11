@@ -1,0 +1,152 @@
+name: Test Case Maintenance
+
+# See README.md for setup and PORTING.md for adopting this on a new project.
+# Five phases, each its own job so artifacts hand off cleanly and a failure
+# in one never lets a later phase run anyway: detect -> prepare -> audit
+# (the only phase that is an agent, not a script) -> validate -> publish.
+# If validate fails, publish is skipped entirely -- the tracking issue stays
+# open and the PRs stay labelled queued for the next scheduled run to retry.
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # keep in sync with config.yml's schedule.cron
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      has_work: ${{ steps.detect.outputs.has_work }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - id: detect
+        name: Detect PRs with documented behaviour changes (3 passes)
+        env:
+          REPO_OPS_TOKEN: ${{ secrets.REPO_OPS_TOKEN }}
+        run: npm run detect
+      - uses: actions/upload-artifact@v4
+        with: { name: detect-output, path: .artifacts/ }
+
+  prepare:
+    needs: detect
+    if: needs.detect.outputs.has_work == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: detect-output, path: .artifacts/ }
+      - name: Verify store access before writing anything
+        env:
+          STORE_TOKEN: ${{ secrets.STORE_TOKEN }}
+        run: npm run preflight
+      - name: Fetch the whole catalogue (one record per line)
+        env:
+          STORE_TOKEN: ${{ secrets.STORE_TOKEN }}
+        run: npm run fetch-catalogue
+      - name: Label PRs queued, open the tracking issue
+        env:
+          REPO_OPS_TOKEN: ${{ secrets.REPO_OPS_TOKEN }}
+        run: npm run label-and-track
+      - uses: actions/upload-artifact@v4
+        with: { name: prepare-output, path: .artifacts/ }
+
+  audit:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: prepare-output, path: .artifacts/ }
+
+      # The ONLY agent step in the whole pipeline. Everything before and
+      # after this is a plain script. allowed_tools is the agent's entire
+      # reach: it can read the catalogue and PR diffs, write its own
+      # output files, and call the broker (scripts/lib/broker.mjs) --
+      # nothing else, no raw store token, no shell beyond that.
+      #
+      # claude-code-action exchanges OIDC for its own GitHub App token and
+      # exports it as GITHUB_TOKEN/GH_TOKEN, overwriting anything the
+      # workflow set -- see docs/CREDENTIALS.md. The broker never reads
+      # GITHUB_TOKEN, only STORE_TOKEN, specifically because of this.
+      - name: Run the audit agent
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt_file: agent/PROCESS.md
+          allowed_tools: |
+            Read
+            Write(.artifacts/**)
+            Bash(node scripts/lib/broker.mjs *)
+            Bash(node scripts/self-check.mjs)
+        env:
+          # Intentionally NOT exported here: STORE_TOKEN. Only the broker
+          # script (invoked via the allowlisted Bash command above) reads
+          # it, from its own environment -- set as a secret on the broker
+          # invocation's job, not handed to the agent directly.
+          STORE_TOKEN: ${{ secrets.STORE_TOKEN }}
+
+      - uses: actions/upload-artifact@v4
+        with: { name: audit-output, path: .artifacts/ }
+
+  validate:
+    needs: audit
+    runs-on: ubuntu-latest
+    outputs:
+      passed: ${{ steps.validate.outputs.passed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: audit-output, path: .artifacts/ }
+      - id: validate
+        name: Validate (ran-marker, output, item existence, grounding, self-check fingerprint)
+        env:
+          STORE_TOKEN: ${{ secrets.STORE_TOKEN }}
+        run: npm run validate
+      - name: Render the summary comment + notification FROM the validated JSON
+        if: steps.validate.outputs.passed == 'true'
+        run: npm run render
+      - uses: actions/upload-artifact@v4
+        with: { name: validated-output, path: .artifacts/ }
+
+  publish:
+    needs: validate
+    if: needs.validate.outputs.passed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: validated-output, path: .artifacts/ }
+      - name: Publish (comment, notify, label done, close issue)
+        env:
+          REPO_OPS_TOKEN: ${{ secrets.REPO_OPS_TOKEN }}
+          NOTIFY_WEBHOOK_URL: ${{ secrets.NOTIFY_WEBHOOK_URL }}
+        run: npm run publish
+
+  report-validation-failure:
+    needs: validate
+    if: needs.validate.outputs.passed == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::error::Validation failed -- the tracking issue stays open and PRs stay queued for the next scheduled run. See the validate job's log for which guard(s) failed."
+          exit 1

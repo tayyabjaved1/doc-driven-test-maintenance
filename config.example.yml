@@ -1,0 +1,87 @@
+# Copy this file to config.yml and fill in every value for your project.
+# config.yml is git-ignored by default (it may contain org/project-specific
+# identifiers) -- commit a sanitized copy if your team wants it versioned.
+#
+# This file is Stage 1 of the porting checklist (PORTING.md). Nothing else
+# in this repo will work until every value below reflects your project.
+
+# --- Detection: which PRs count as "documented behaviour changed" -----------
+detection:
+  # The repo this pipeline watches for merged PRs. owner/name.
+  repo: "your-org/your-repo"
+
+  # A PR counts as in-scope if it touched any of these paths. Keep this
+  # narrow and deliberate -- it is the one thing that decides what the
+  # agent ever looks at. Glob patterns, relative to the repo root.
+  docs_paths:
+    - "docs/features/**/*.md"
+
+  # Labels this pipeline manages. "done" must be excluded at every detection
+  # pass (see docs/ARCHITECTURE.md's three-pass detection) or completed work
+  # gets re-audited forever.
+  labels:
+    queued: "test-maintenance:queued"
+    done: "test-maintenance:done"
+
+  # How far back each detection pass looks, in hours. Pass 3 ("any age") has
+  # no window -- it just re-scans anything still labelled `queued`, which is
+  # what makes a crashed cycle recoverable.
+  passes:
+    fresh_hours: 24
+    catch_up_hours: 168 # 7 days
+
+# --- The test-case store -----------------------------------------------------
+store:
+  # Which adapter to use. See scripts/store/adapter.interface.md for the
+  # contract every adapter implements, and scripts/store/ for what ships
+  # today. "github-projects" is the only fully-implemented adapter in this
+  # repo -- it needs no infrastructure beyond the GitHub org you already have.
+  adapter: "github-projects"
+
+  github_projects:
+    org: "your-org"
+    project_number: 1 # the project's number, from its URL
+
+    # Field and option ids. Run `npm run discover-fields -- --project 1
+    # --org your-org` to print these for your actual project instead of
+    # guessing -- field ids are per-project and will not match this example.
+    fields:
+      status: "PVTSSF_xxx"
+      priority: "PVTSSF_xxx"
+      role: "PVTSSF_xxx"
+      module: "PVTF_xxx" # a text field, not single-select
+
+    # The provisional states the agent is allowed to set. Promotion to the
+    # approved state is human-only -- never list it here.
+    statuses:
+      draft: "Draft"
+      updated_under_review: "Updated (Under Review)"
+      deprecated_under_review: "Deprecated (Under Review)"
+      approved: "Approved" # reference only; never written by this pipeline
+
+  # jira: {}        # see scripts/store/adapter.interface.md to add one
+  # testrail: {}    # see scripts/store/adapter.interface.md to add one
+
+# --- What "a module" means in this project -----------------------------------
+# The unit the agent audits one at a time, and the unit the summary groups by
+# (see summary.schema.json). Pick whatever your test-case store already
+# organizes cases by -- a product area, a page, a service.
+module_definition: "one top-level folder under docs/features/"
+
+# --- Credentials (names only -- set the real values as repo/environment secrets) ---
+# See docs/CREDENTIALS.md for why these are four separate tokens, not one.
+credentials:
+  anthropic_api_key_secret: "ANTHROPIC_API_KEY"
+  store_token_secret: "STORE_TOKEN" # read+write on the store only
+  repo_ops_token_secret: "REPO_OPS_TOKEN" # read PRs, write issues/labels on `detection.repo`
+  cross_repo_token_secret: "" # only if docs live in a different repo than detection.repo
+
+# --- Schedule -----------------------------------------------------------------
+schedule:
+  cron: "0 2 * * *" # nightly at 02:00 UTC
+
+# --- Validation thresholds -----------------------------------------------------
+validation:
+  # Total time budget for retrying transient store/API failures, in seconds.
+  # Bounded deliberately -- see docs/ARCHITECTURE.md's guard #3.
+  retry_budget_seconds: 120

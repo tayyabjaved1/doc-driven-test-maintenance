@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/your-org/doc-driven-test-maintenance/summary.schema.json",
+  "title": "Audit summary",
+  "description": "The one machine-readable file the agent writes. The human-readable summary and the notification are both rendered FROM this file (scripts/render-summary.mjs) -- never authored separately -- so they cannot describe different runs. See docs/ARCHITECTURE.md's 'summary contract' section for why each rule below exists.",
+  "type": "object",
+  "required": ["modules", "grounding", "conflicts", "judgement_calls", "notes"],
+  "additionalProperties": false,
+  "properties": {
+    "modules": {
+      "type": "array",
+      "description": "One entry per module touched by an in-scope PR. Rule: every in-scope PR must appear against some module's driven_by -- a single module with empty lists must not be able to close a cycle in which others were never examined (validate-summary.mjs's coverage guard checks this).",
+      "items": {
+        "type": "object",
+        "required": ["name", "driven_by", "created", "updated", "deprecated", "no_change"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "description": "Accepts the synonym 'module' at the top level -- see render-summary.mjs's vocabulary normalization." },
+          "driven_by": {
+            "type": "string",
+            "description": "The PR(s) that drove this module's audit, e.g. '#534, #557'."
+          },
+          "created": { "type": "array", "items": { "$ref": "#/definitions/createdItem" } },
+          "updated": { "type": "array", "items": { "$ref": "#/definitions/updatedItem" } },
+          "deprecated": { "type": "array", "items": { "$ref": "#/definitions/deprecatedItem" } },
+          "no_change": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Count of existing cases audited and left alone. Never stated independently elsewhere -- it IS the number other renderers read."
+          }
+        }
+      }
+    },
+    "grounding": {
+      "type": "array",
+      "description": "Every factual/numeric claim anywhere in this file must have a grounding entry. validate-summary.mjs opens `file` and checks `excerpt` appears verbatim at or near `line`.",
+      "items": {
+        "type": "object",
+        "required": ["claim", "file", "line", "excerpt"],
+        "additionalProperties": false,
+        "properties": {
+          "claim": { "type": "string" },
+          "file": { "type": "string", "description": "Path relative to repo root. Documentation files need a line number too, not only source." },
+          "line": { "type": "integer", "minimum": 1 },
+          "excerpt": {
+            "type": "string",
+            "description": "One REAL line, verbatim. Never a multi-line construct reassembled onto one line -- that text exists nowhere and the grounding check will correctly fail it."
+          }
+        }
+      }
+    },
+    "no_action_reason": {
+      "type": "object",
+      "description": "REQUIRED whenever every module's created/updated/deprecated arrays are empty (validate-summary.mjs enforces this -- an absent field in that situation is itself a validation failure, not a pass).",
+      "required": ["kind", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["nothing-needed", "blocked", "incomplete"],
+          "description": "nothing-needed: audited everything in scope, catalogue already correct -- cycle closes. blocked: something prevented writing (refused command, bad token) -- issue stays open, PRs stay queued. incomplete: ran out of room before auditing everything -- issue stays open, PRs stay queued."
+        },
+        "detail": { "type": "string" }
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "description": "Cases where the agent found disagreeing sources of truth (e.g. two docs disagreeing about a count) and had to pick one. Empty array, not omitted, when there are none.",
+      "items": { "type": "string" }
+    },
+    "judgement_calls": {
+      "type": "array",
+      "description": "Places the agent made a call it wants a human to double-check -- e.g. declining to update a case it could not confidently match. This is the agent's uncertainty channel; treat a non-empty array as a signal worth a human's attention, never as a failure.",
+      "items": { "type": "string" }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "definitions": {
+    "createdItem": {
+      "type": "object",
+      "required": ["title", "item_id", "priority", "role"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "item_id": { "type": "string", "description": "Must resolve in the store -- validate-summary.mjs's existence-resolution guard checks every id here, in updated[], and in deprecated[]." },
+        "priority": { "type": "string" },
+        "role": { "type": "string" }
+      }
+    },
+    "updatedItem": {
+      "type": "object",
+      "required": ["title", "item_id", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "item_id": { "type": "string" },
+        "reason": {
+          "type": "string",
+          "description": "What changed, in user-facing terms -- accepts the synonym 'reason_for_updating'."
+        }
+      }
+    },
+    "deprecatedItem": {
+      "type": "object",
+      "required": ["title", "item_id", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "item_id": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    }
+  }
+}

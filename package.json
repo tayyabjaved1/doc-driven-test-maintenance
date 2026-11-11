@@ -1,0 +1,27 @@
+{
+  "name": "doc-driven-test-maintenance",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "A portable, domain-agnostic GitHub Actions pipeline that keeps a test-case catalogue in sync with product documentation, using scripts for every mechanical step and an AI agent only for judgement.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "detect": "node scripts/detect-prs.mjs",
+    "preflight": "node scripts/preflight.mjs",
+    "fetch-catalogue": "node scripts/fetch-catalogue.mjs",
+    "label-and-track": "node scripts/label-and-track.mjs",
+    "self-check": "node scripts/self-check.mjs",
+    "validate": "node scripts/validate-summary.mjs",
+    "render": "node scripts/render-summary.mjs",
+    "publish": "node scripts/publish.mjs",
+    "discover-fields": "node scripts/store/github-projects.discover-fields.mjs",
+    "test": "node --test scripts/__tests__/*.test.mjs"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1"
+  }
+}

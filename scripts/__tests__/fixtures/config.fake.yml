@@ -1,0 +1,27 @@
+detection:
+  repo: "test-org/test-repo"
+  docs_paths:
+    - "scripts/__tests__/fixtures/**/*.md"
+  labels:
+    queued: "test-maintenance:queued"
+    done: "test-maintenance:done"
+  passes:
+    fresh_hours: 24
+    catch_up_hours: 168
+
+store:
+  adapter: "fake"
+
+module_definition: "a fixture module, for the pipeline's own end-to-end test"
+
+credentials:
+  anthropic_api_key_secret: "ANTHROPIC_API_KEY"
+  store_token_secret: "STORE_TOKEN"
+  repo_ops_token_secret: "REPO_OPS_TOKEN"
+  cross_repo_token_secret: ""
+
+schedule:
+  cron: "0 2 * * *"
+
+validation:
+  retry_budget_seconds: 5
